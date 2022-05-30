@@ -40,6 +40,7 @@ type PluginConf struct {
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
+
 	utils.WriteLog("进入到 cmdAdd")
 	utils.WriteLog(
 		"这里的 CmdArgs 是: ", "ContainerID: ", args.ContainerID,

@@ -79,14 +79,14 @@ func SetUpVeth(veth ...*netlink.Veth) error {
 	return nil
 }
 
-func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, error) {
+func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, string, error) {
 	vethPairName := ""
 	for {
 		_vname, err := RandomVethName()
 		vethPairName = _vname
 		if err != nil {
 			utils.WriteLog("生成随机 veth pair 名字失败, err: ", err.Error())
-			return nil, err
+			return nil, "", err
 		}
 
 		_, err = netlink.LinkByName(vethPairName)
@@ -98,7 +98,7 @@ func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, err
 	}
 
 	if vethPairName == "" {
-		return nil, errors.New("生成 veth pair name 失败")
+		return nil, "", errors.New("生成 veth pair name 失败")
 	}
 
 	veth := &netlink.Veth{
@@ -117,7 +117,7 @@ func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, err
 
 	if err != nil {
 		utils.WriteLog("创建 veth 设备失败, err: ", err.Error())
-		return nil, err
+		return nil, "", err
 	}
 
 	// 尝试重新获取 veth 设备看是否能成功
@@ -126,7 +126,7 @@ func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, err
 		// 如果获取失败就尝试删掉
 		netlink.LinkDel(veth1)
 		utils.WriteLog("创建完 veth 但是获取失败, err: ", err.Error())
-		return nil, err
+		return nil, "", err
 	}
 
 	// // 尝试重新获取 veth 设备看是否能成功
@@ -138,7 +138,7 @@ func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, err
 	// 	return nil, nil, err
 	// }
 
-	return veth1.(*netlink.Veth), nil
+	return veth1.(*netlink.Veth), veth.PeerName, nil
 }
 
 func SetIpForVeth(veth *netlink.Veth, podIP string) error {
@@ -349,21 +349,18 @@ func CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster(
 	} else {
 		utils.WriteLog("创建网卡成功, err: ", brName)
 	}
-	treadNs, err := ns.GetCurrentNS()
-	utils.WriteLog("hostNs: ", treadNs.Path())
-	utils.WriteLog("netNs: ", netns.Path())
 
 	// netns.do就是在这个Ns下执行操作， 但是这个hostNs是真的host
 	err = netns.Do(func(hostNs ns.NetNS) error {
 		// 创建一对儿 veth 设备
-		containerVeth, err := CreateVethPair(ifName, mtu, hostNs)
+		containerVeth, hostName, err := CreateVethPair(ifName, mtu, hostNs)
 		if err != nil {
 			utils.WriteLog("创建 veth 失败, err: ", err.Error())
 			return err
 		} else {
 			utils.WriteLog(
 				"创建 veth 成功, containerVeth:", fmt.Sprintf("%v", containerVeth),
-				" hostVeth:", fmt.Sprintf("%v", containerVeth.PeerName))
+				" hostVeth:", fmt.Sprintf("%v", hostName))
 		}
 
 		// // 把随机起名的 veth 那头放在主机上
@@ -388,10 +385,9 @@ func CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster(
 		}
 
 		hostNs.Do(func(t ns.NetNS) error {
-			utils.WriteLog("当当当前ns:", t.Path())
 			// 重新获取一次 host 上的 veth, 因为 hostVeth 发生了改变
 			_hostVeth, err := netlink.LinkByName(containerVeth.PeerName)
-			hostVeth := _hostVeth.(netlink.Link)
+			hostVeth := _hostVeth.(*netlink.Veth)
 			if err != nil {
 				utils.WriteLog("重新获取 hostVeth 失败, err: ", err.Error())
 				return err

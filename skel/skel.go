@@ -36,12 +36,12 @@ import (
 // CmdArgs captures all the arguments passed in to the plugin
 // via both env vars and stdin
 type CmdArgs struct {
-	ContainerID string
-	Netns       string
-	IfName      string
-	Args        string
-	Path        string
-	StdinData   []byte
+	ContainerID string // 容器ID
+	Netns       string // 上层创建好的命名空间
+	IfName      string // 预定好的网卡名字
+	Args        string // 其他参数
+	Path        string // 可执行文件路径
+	StdinData   []byte // ...
 }
 
 type dispatcher struct {
