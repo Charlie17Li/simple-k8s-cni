@@ -22,11 +22,11 @@ func TestIpam(t *testing.T) {
 
 	fmt.Println("成功: ", is.MaskIP)
 	test.Equal(is.MaskIP, "255.255.0.0")
-	cidr, _ := is.Get().CIDR("ding-net-master")
+	cidr, _ := is.Get().CIDR("cni-control-plane")
 	test.Equal(cidr, "10.244.0.0/24")
-	cidr, _ = is.Get().CIDR("ding-net-node-1")
+	cidr, _ = is.Get().CIDR("cni-worker")
 	test.Equal(cidr, "10.244.1.0/24")
-	cidr, _ = is.Get().CIDR("ding-net-node-2")
+	cidr, _ = is.Get().CIDR("cni-worker2")
 	test.Equal(cidr, "10.244.2.0/24")
 
 	names, err := is.Get().NodeNames()

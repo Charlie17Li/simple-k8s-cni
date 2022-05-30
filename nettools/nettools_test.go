@@ -1,122 +1,50 @@
-package nettools_test
+package nettools
 
 import (
 	"fmt"
-	oriNet "net"
-
-	"testing"
-
-	"testcni/ipam"
-	"testcni/nettools"
-
 	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/vishvananda/netlink"
+	// "github.com/vishvananda/netlink"
+	"testcni/ipam"
+	"testing"
 )
 
-func _nettools(brName, gw, ifName, podIP string, mtu int, netns ns.NetNS) {
-	// 先创建网桥
-	br, err := nettools.CreateBridge(brName, gw, mtu)
-	if err != nil {
-		fmt.Println("创建网卡失败, err: ", err.Error())
-		return
-	}
+var (
+	brName = "testbr0"
+	cidr   = "10.244.0.1/16"
+	ifName = "eth0"
+	podIP  = "10.244.0.2/24"
+	mtu    = 1500
+	nspath = "/run/netns/test.net.1"
+)
 
-	err = netns.Do(func(hostNs ns.NetNS) error {
-		// 创建一对儿 veth 设备
-		containerVeth, hostVeth, err := nettools.CreateVethPair(ifName, mtu)
-		if err != nil {
-			fmt.Println("创建 veth 失败, err: ", err.Error())
-			return err
-		}
+func clean() {
+	//删除veth対
 
-		// 放一个到主机上
-		err = nettools.SetVethNsFd(hostVeth, hostNs)
-		if err != nil {
-			fmt.Println("把 veth 设置到 ns 下失败: ", err.Error())
-			return err
-		}
-
-		// 然后把要被放到 pod 中的塞上 podIP
-		err = nettools.SetIpForVeth(containerVeth, podIP)
-		if err != nil {
-			fmt.Println("给 veth 设置 ip 失败, err: ", err.Error())
-			return err
-		}
-
-		// 然后启动它
-		err = nettools.SetUpVeth(containerVeth)
-		if err != nil {
-			fmt.Println("启动 veth pair 失败, err: ", err.Error())
-			return err
-		}
-
-		// 启动之后给这个 netns 设置默认路由 以便让其他网段的包也能从 veth 走到网桥
-		// TODO: 实测后发现还必须得写在这里, 如果写在下面 hostNs.Do 里头会报错目标 network 不可达(why?)
-		gwNetIP, _, err := oriNet.ParseCIDR(gw)
-		if err != nil {
-			fmt.Println("转换 gwip 失败, err:", err.Error())
-			return err
-		}
-		err = nettools.SetDefaultRouteToVeth(gwNetIP, containerVeth)
-		if err != nil {
-			fmt.Println("SetDefaultRouteToVeth 时出错, err: ", err.Error())
-			return err
-		}
-
-		hostNs.Do(func(_ ns.NetNS) error {
-			// 重新获取一次 host 上的 veth, 因为 hostVeth 发生了改变
-			_hostVeth, err := netlink.LinkByName(hostVeth.Attrs().Name)
-			hostVeth = _hostVeth.(*netlink.Veth)
-			if err != nil {
-				fmt.Println("重新获取 hostVeth 失败, err: ", err.Error())
-				return err
-			}
-			// 启动它
-			err = nettools.SetUpVeth(hostVeth)
-			if err != nil {
-				fmt.Println("启动 veth pair 失败, err: ", err.Error())
-				return err
-			}
-
-			// 把它塞到网桥上
-			err = nettools.SetVethMaster(hostVeth, br)
-			if err != nil {
-				fmt.Println("挂载 veth 到网桥失败, err: ", err.Error())
-				return err
-			}
-
-			// 都完事儿之后理论上同一台主机下的俩 netns(pod) 就能通信了
-			// 如果无法通信, 有可能是 iptables 被设置了 forward drop
-			// 需要用 iptables 允许网桥做转发
-			err = nettools.SetIptablesForBridgeToForwardAccept(br)
-			if err != nil {
-				fmt.Println("set iptables 失败", err.Error())
-			}
-
-			return nil
-		})
-
-		return nil
-	})
-
-	if err != nil {
-		fmt.Println("这里的 err 是: ", err.Error())
-	}
+	//删除bridge
 }
 
 func TestNettools(t *testing.T) {
-	// brName := "testbr0"
-	// cidr := "10.244.1.1/16"
-	// ifName := "eth0"
-	// podIP := "10.244.1.2/24"
-	// mtu := 1500
-	// netns, err := ns.GetNS("/run/netns/test.net.1")
+
+	// err := ns.IsNSorErr(nspath)
 	// if err != nil {
-	// 	fmt.Println("获取 ns 失败: ", err.Error())
-	// 	return
+	// 	fmt.Println("IsNSorErr 失败: ", err.Error())
 	// }
 
+	// _, err = os.Open(nspath)
+	// if err != nil {
+	// 	fmt.Println("Open 失败: ", err.Error())
+	// }
+	netns, err := ns.GetNS(nspath)
+	if err != nil {
+		fmt.Println("获取 ns 失败: ", err.Error())
+		return
+	}
+
 	// _nettools(brName, cidr, ifName, podIP, mtu, netns)
+	if err = CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster(brName, cidr, ifName, podIP, mtu, netns); err != nil {
+		t.Errorf("失败：%v", err)
+		return
+	}
 
 	// brName = "testbr0"
 	// podIP = "10.244.1.3/24"
@@ -147,7 +75,7 @@ func TestNettools(t *testing.T) {
 	}
 
 	fmt.Println("成功: ", is.MaskIP)
-	//  test.Equal(is.MaskIP, "255.255.0.0")
+	// t.Equal(is.MaskIP, "255.255.0.0")
 
 	names, err := is.Get().NodeNames()
 	if err != nil {
@@ -155,7 +83,7 @@ func TestNettools(t *testing.T) {
 		return
 	}
 
-	//  test.Equal(len(names), 3)
+	// t.Equal(len(names), 3)
 
 	for _, name := range names {
 		fmt.Println("这里的 name 是: ", name)

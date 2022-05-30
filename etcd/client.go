@@ -8,6 +8,7 @@ import (
 
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	etcd "go.etcd.io/etcd/client/v3"
+	"k8s.io/kubectl/pkg/scheme"
 )
 
 type EtcdConfig struct {
@@ -69,12 +70,7 @@ func newEtcdClient(config *EtcdConfig) (*etcd.Client, error) {
 var __GetEtcdClient func() (*EtcdClient, error)
 
 func GetEtcdClient() (*EtcdClient, error) {
-
-	if __GetEtcdClient == nil {
-		return nil, nil
-	}
-	return __GetEtcdClient()
-
+	return _GetEtcdClient()()
 }
 
 func _GetEtcdClient() func() (*EtcdClient, error) {
@@ -88,7 +84,7 @@ func _GetEtcdClient() func() (*EtcdClient, error) {
 
 			// TODO: 这里暂时把 etcd 的地址写死了
 			client, err := newEtcdClient(&EtcdConfig{
-				EtcdEndpoints:  "https://192.168.98.143:2379",
+				EtcdEndpoints:  "https://172.18.0.3:2379",
 				EtcdCertFile:   "/etc/kubernetes/pki/etcd/healthcheck-client.crt",
 				EtcdKeyFile:    "/etc/kubernetes/pki/etcd/healthcheck-client.key",
 				EtcdCACertFile: "/etc/kubernetes/pki/etcd/ca.crt",
@@ -98,7 +94,7 @@ func _GetEtcdClient() func() (*EtcdClient, error) {
 				return nil, err
 			}
 
-			status, err := client.Status(context.TODO(), "https://192.168.98.143:2379")
+			status, err := client.Status(context.TODO(), "https://172.18.0.3:2379")
 
 			if err != nil {
 				// fmt.Println("无法获取到 etcd 版本: ", err.Error())
@@ -150,15 +146,23 @@ func (c *EtcdClient) Get(key string, opts ...etcd.OpOption) (string, error) {
 		return "", err
 	}
 
-	// for _, ev := range resp.Kvs {
-	// 	fmt.Println("这里的 ev 是: ", ev)
-	// 	fmt.Printf("%s : %s\n", ev.Key, ev.Value)
-	// }
-
 	if len(resp.Kvs) > 0 {
 		return string(resp.Kvs[len(resp.Kvs)-1:][0].Value), nil
 	}
 	return "", nil
+}
+
+func (c *EtcdClient) GetObj(key string, opts ...etcd.OpOption) (interface{}, error) {
+	resp, err := c.client.Get(context.TODO(), key, opts...)
+	if err != nil {
+		return nil, err
+	}
+	decoder := scheme.Codecs.UniversalDeserializer()
+	obj, _, err := decoder.Decode(resp.Kvs[len(resp.Kvs)-1:][0].Value, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
 
 func (c *EtcdClient) GetKey(key string, opts ...etcd.OpOption) (string, error) {

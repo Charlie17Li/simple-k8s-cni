@@ -80,6 +80,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("获取 gatewayWithMaskSegment 出错, err: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("获取 gatewayWithMaskSegment: %v, err: ", gatewayWithMaskSegment)
 	}
 
 	// 获取网桥名字
@@ -98,6 +100,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("获取 ns 失败: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("获取 ns 成功: %v", args.Netns)
 	}
 
 	// 从 ipam 中拿到一个未使用的 ip 地址
@@ -105,6 +109,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("获取 podIP 出错, err: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("获取 podIP 成功, err: ", podIP)
 	}
 
 	// 走到这儿的话说明这个 podIP 已经在 etcd 中占上坑位了

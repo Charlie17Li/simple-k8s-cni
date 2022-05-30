@@ -79,14 +79,14 @@ func SetUpVeth(veth ...*netlink.Veth) error {
 	return nil
 }
 
-func CreateVethPair(ifName string, mtu int) (*netlink.Veth, *netlink.Veth, error) {
+func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, error) {
 	vethPairName := ""
 	for {
 		_vname, err := RandomVethName()
 		vethPairName = _vname
 		if err != nil {
 			utils.WriteLog("生成随机 veth pair 名字失败, err: ", err.Error())
-			return nil, nil, err
+			return nil, err
 		}
 
 		_, err = netlink.LinkByName(vethPairName)
@@ -98,7 +98,7 @@ func CreateVethPair(ifName string, mtu int) (*netlink.Veth, *netlink.Veth, error
 	}
 
 	if vethPairName == "" {
-		return nil, nil, errors.New("生成 veth pair name 失败")
+		return nil, errors.New("生成 veth pair name 失败")
 	}
 
 	veth := &netlink.Veth{
@@ -108,8 +108,8 @@ func CreateVethPair(ifName string, mtu int) (*netlink.Veth, *netlink.Veth, error
 			MTU: mtu,
 			// Namespace: netlink.NsFd(int(ns.Fd())), // 先不设置 ns, 要不一会儿下头 LinkByName 时候找不到
 		},
-		PeerName: vethPairName,
-		// PeerNamespace: netlink.NsFd(int(ns.Fd())),
+		PeerName:      vethPairName,
+		PeerNamespace: netlink.NsFd(int(hostNs.Fd())),
 	}
 
 	// 创建 veth pair
@@ -117,7 +117,7 @@ func CreateVethPair(ifName string, mtu int) (*netlink.Veth, *netlink.Veth, error
 
 	if err != nil {
 		utils.WriteLog("创建 veth 设备失败, err: ", err.Error())
-		return nil, nil, err
+		return nil, err
 	}
 
 	// 尝试重新获取 veth 设备看是否能成功
@@ -126,19 +126,19 @@ func CreateVethPair(ifName string, mtu int) (*netlink.Veth, *netlink.Veth, error
 		// 如果获取失败就尝试删掉
 		netlink.LinkDel(veth1)
 		utils.WriteLog("创建完 veth 但是获取失败, err: ", err.Error())
-		return nil, nil, err
+		return nil, err
 	}
 
-	// 尝试重新获取 veth 设备看是否能成功
-	veth2, err := netlink.LinkByName(vethPairName) // veth2 在主机上
-	if err != nil {
-		// 如果获取失败就尝试删掉
-		netlink.LinkDel(veth2)
-		utils.WriteLog("创建完 veth 但是获取失败, err: ", err.Error())
-		return nil, nil, err
-	}
+	// // 尝试重新获取 veth 设备看是否能成功
+	// veth2, err := netlink.LinkByName(vethPairName) // veth2 在主机上
+	// if err != nil {
+	// 	// 如果获取失败就尝试删掉
+	// 	netlink.LinkDel(veth2)
+	// 	utils.WriteLog("创建完 veth 但是获取失败, err: ", err.Error())
+	// 	return nil, nil, err
+	// }
 
-	return veth1.(*netlink.Veth), veth2.(*netlink.Veth), nil
+	return veth1.(*netlink.Veth), nil
 }
 
 func SetIpForVeth(veth *netlink.Veth, podIP string) error {
@@ -346,22 +346,32 @@ func CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster(
 	if err != nil {
 		utils.WriteLog("创建网卡失败, err: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("创建网卡成功, err: ", brName)
 	}
+	treadNs, err := ns.GetCurrentNS()
+	utils.WriteLog("hostNs: ", treadNs.Path())
+	utils.WriteLog("netNs: ", netns.Path())
 
+	// netns.do就是在这个Ns下执行操作， 但是这个hostNs是真的host
 	err = netns.Do(func(hostNs ns.NetNS) error {
 		// 创建一对儿 veth 设备
-		containerVeth, hostVeth, err := CreateVethPair(ifName, mtu)
+		containerVeth, err := CreateVethPair(ifName, mtu, hostNs)
 		if err != nil {
 			utils.WriteLog("创建 veth 失败, err: ", err.Error())
 			return err
+		} else {
+			utils.WriteLog(
+				"创建 veth 成功, containerVeth:", fmt.Sprintf("%v", containerVeth),
+				" hostVeth:", fmt.Sprintf("%v", containerVeth.PeerName))
 		}
 
-		// 把随机起名的 veth 那头放在主机上
-		err = SetVethNsFd(hostVeth, hostNs)
-		if err != nil {
-			utils.WriteLog("把 veth 设置到 ns 下失败: ", err.Error())
-			return err
-		}
+		// // 把随机起名的 veth 那头放在主机上
+		// err = SetVethNsFd(hostVeth, hostNs)
+		// if err != nil {
+		// 	utils.WriteLog("把 veth 设置到 ns 下失败: ", err.Error())
+		// 	return err
+		// }
 
 		// 然后把要被放到 pod 中的那头 veth 塞上 podIP
 		err = SetIpForVeth(containerVeth, podIP)
@@ -377,25 +387,11 @@ func CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster(
 			return err
 		}
 
-		// 启动之后给这个 netns 设置默认路由 以便让其他网段的包也能从 veth 走到网桥
-		// TODO: 实测后发现还必须得写在这里, 如果写在下面 hostNs.Do 里头会报错目标 network 不可达(why?)
-		gwNetIP, _, err := net.ParseCIDR(gw)
-		if err != nil {
-			utils.WriteLog("转换 gwip 失败, err:", err.Error())
-			return err
-		}
-
-		// 给 pod(net ns) 中加一个默认路由规则, 该规则让匹配了 0.0.0.0 的都走上边创建的那个 container veth
-		err = SetDefaultRouteToVeth(gwNetIP, containerVeth)
-		if err != nil {
-			utils.WriteLog("SetDefaultRouteToVeth 时出错, err: ", err.Error())
-			return err
-		}
-
-		hostNs.Do(func(_ ns.NetNS) error {
+		hostNs.Do(func(t ns.NetNS) error {
+			utils.WriteLog("当当当前ns:", t.Path())
 			// 重新获取一次 host 上的 veth, 因为 hostVeth 发生了改变
-			_hostVeth, err := netlink.LinkByName(hostVeth.Attrs().Name)
-			hostVeth = _hostVeth.(*netlink.Veth)
+			_hostVeth, err := netlink.LinkByName(containerVeth.PeerName)
+			hostVeth := _hostVeth.(netlink.Link)
 			if err != nil {
 				utils.WriteLog("重新获取 hostVeth 失败, err: ", err.Error())
 				return err
@@ -425,6 +421,22 @@ func CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster(
 			return nil
 		})
 
+		// 启动之后给这个 netns 设置默认路由 以便让其他网段的包也能从 veth 走到网桥
+		// TODO: 实测后发现还必须得写在这里, 如果写在下面 hostNs.Do 里头会报错目标 network 不可达(why?)
+		gwNetIP, _, err := net.ParseCIDR(gw)
+		if err != nil {
+			utils.WriteLog("转换 gwip 失败, err:", err.Error())
+			return err
+		} else {
+			utils.WriteLog("转换 gwip 成功, gwNetIP:", fmt.Sprintf("%v", gwNetIP), "containerVeth:", fmt.Sprintf("%v", containerVeth))
+		}
+
+		// 给 pod(net ns) 中加一个默认路由规则, 该规则让匹配了 0.0.0.0 的都走上边创建的那个 container veth
+		err = SetDefaultRouteToVeth(gwNetIP, containerVeth)
+		if err != nil {
+			utils.WriteLog("SetDefaultRouteToVeth 时出错, err: ", err.Error())
+			return err
+		}
 		return nil
 	})
 

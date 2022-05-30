@@ -14,9 +14,9 @@ import (
 	"testcni/etcd"
 	"testcni/utils"
 
-	"github.com/dlclark/regexp2"
 	"github.com/vishvananda/netlink"
 	oriEtcd "go.etcd.io/etcd/client/v3"
+	apiv1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -418,37 +418,21 @@ func (g *Get) NodeIp(hostName string) (string, error) {
 	defer unlock()
 
 	const _minionsNodePrefix = "/registry/minions/"
-	val, err := g.etcdClient.Get(_minionsNodePrefix + hostName)
+	val, err := g.etcdClient.GetObj(_minionsNodePrefix + hostName)
 
 	if err != nil {
 		utils.WriteLog("获取集群节点 ip 失败, err: ", err.Error())
 		return "", err
 	}
 
-	r, err := regexp2.Compile(`(?<=InternalIP).*(?=\*)`, 0)
-
-	if err != nil {
-		utils.WriteLog("初始化正则表达式失败, err: ", err.Error())
-		return "", nil
-	}
-	ip, err := r.FindStringMatch(val)
-	if err != nil {
-		utils.WriteLog("正则匹配 ip 失败, err: ", err.Error())
-		return "", nil
-	}
-	// fmt.Println("这里的 ip 是: ", ip)
-	if ip == nil {
-		return "", fmt.Errorf("没有找到 ip")
-	}
-	// TODO: 这里匹配出来的东西很诡异, 匹配出来的 ip 前头会有个两个字节分别是 18 和 14
-	// 不知道是不是 etcd 中存储的文档的特殊格式还是咋得, 真 der
-	// 这里先 hack 得强行把它替换成空
-	_ip := strings.Replace(ip.String(), string([]byte{18, 14}), "", 1)
-	if len(_ip) > 0 {
-		return _ip, nil
+	node := val.(*apiv1.Node)
+	for _, val := range node.Status.Addresses {
+		if val.Type == "InternalIP" {
+			return val.Address, nil
+		}
 	}
 
-	return "", fmt.Errorf("没有找到 ip")
+	return "", fmt.Errorf("获取节点的Internal失败")
 }
 
 func (g *Get) nextUnusedIP() (string, error) {
