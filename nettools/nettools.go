@@ -79,6 +79,7 @@ func SetUpVeth(veth ...*netlink.Veth) error {
 	return nil
 }
 
+// CreateVethPair is called from within the container's network namespace
 func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, string, error) {
 	vethPairName := ""
 	for {
@@ -104,8 +105,7 @@ func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, str
 	veth := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: ifName,
-			// Flags:     net.FlagUp,
-			MTU: mtu,
+			MTU:  mtu,
 			// Namespace: netlink.NsFd(int(ns.Fd())), // 先不设置 ns, 要不一会儿下头 LinkByName 时候找不到
 		},
 		PeerName:      vethPairName,
@@ -113,14 +113,13 @@ func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, str
 	}
 
 	// 创建 veth pair
-	err := netlink.LinkAdd(veth)
-
-	if err != nil {
+	if err := netlink.LinkAdd(veth); err != nil {
 		utils.WriteLog("创建 veth 设备失败, err: ", err.Error())
 		return nil, "", err
 	}
 
 	// 尝试重新获取 veth 设备看是否能成功
+	// tip(lql): 注意这里重新获取以后，peerName没有值，不论peer是否在ns中，所以返回必须返回vethPairName,而不能是veth1.peername
 	veth1, err := netlink.LinkByName(ifName) // veth1 一会儿要在 pod(net ns) 里
 	if err != nil {
 		// 如果获取失败就尝试删掉
@@ -137,8 +136,8 @@ func CreateVethPair(ifName string, mtu int, hostNs ns.NetNS) (*netlink.Veth, str
 	// 	utils.WriteLog("创建完 veth 但是获取失败, err: ", err.Error())
 	// 	return nil, nil, err
 	// }
-
-	return veth1.(*netlink.Veth), veth.PeerName, nil
+	utils.WriteLog("创建完 veth pair成功", "container:", veth1.(*netlink.Veth).Name, "hostVeth", vethPairName)
+	return veth1.(*netlink.Veth), vethPairName, nil
 }
 
 func SetIpForVeth(veth *netlink.Veth, podIP string) error {
@@ -384,14 +383,14 @@ func CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster(
 			return err
 		}
 
-		hostNs.Do(func(t ns.NetNS) error {
+		err = hostNs.Do(func(t ns.NetNS) error {
 			// 重新获取一次 host 上的 veth, 因为 hostVeth 发生了改变
-			_hostVeth, err := netlink.LinkByName(containerVeth.PeerName)
-			hostVeth := _hostVeth.(*netlink.Veth)
+			_hostVeth, err := netlink.LinkByName(hostName)
 			if err != nil {
-				utils.WriteLog("重新获取 hostVeth 失败, err: ", err.Error())
+				utils.WriteLog("重新获取 hostVeth:", hostName, " 失败, err: ", err.Error())
 				return err
 			}
+			hostVeth := _hostVeth.(*netlink.Veth)
 			// 启动它
 			err = SetUpVeth(hostVeth)
 			if err != nil {
@@ -416,6 +415,10 @@ func CreateBridgeAndCreateVethAndSetNetworkDeviceStatusAndSetVethMaster(
 
 			return nil
 		})
+
+		if err != nil {
+			utils.WriteLog("在HostNs执行失败:", err.Error())
+		}
 
 		// 启动之后给这个 netns 设置默认路由 以便让其他网段的包也能从 veth 走到网桥
 		// TODO: 实测后发现还必须得写在这里, 如果写在下面 hostNs.Do 里头会报错目标 network 不可达(why?)

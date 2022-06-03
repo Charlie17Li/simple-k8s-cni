@@ -38,7 +38,7 @@ type PluginConf struct {
 	Subnet string `json:"subnet"`
 }
 
-func TestMain(t *testing.T) {
+func TestMain(m *testing.M) {
 	// 测试代码执行后, 可通过执行 ./clear.sh testcni0 来清掉测试的操作,
 	// 不过注意不同节点上要把对应的其他节点 ip 改咯
 

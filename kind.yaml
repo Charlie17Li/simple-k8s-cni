@@ -11,13 +11,7 @@ networking:
 nodes:
 - role: control-plane
   extraMounts:
-  - hostPath: /home/charlie/cni
+  - hostPath: /Users/a123/Projects/simple-k8s-cni
     containerPath: /root/cni
 - role: worker
-  extraMounts:
-  - hostPath: /home/charlie/cni
-    containerPath: /root/cni
 - role: worker
-  extraMounts:
-  - hostPath: /home/charlie/cni
-    containerPath: /root/cni

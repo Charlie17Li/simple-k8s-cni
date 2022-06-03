@@ -84,7 +84,7 @@ func _GetEtcdClient() func() (*EtcdClient, error) {
 
 			// TODO: 这里暂时把 etcd 的地址写死了
 			client, err := newEtcdClient(&EtcdConfig{
-				EtcdEndpoints:  "https://172.18.0.3:2379",
+				EtcdEndpoints:  "https://172.18.0.4:2379",
 				EtcdCertFile:   "/etc/kubernetes/pki/etcd/healthcheck-client.crt",
 				EtcdKeyFile:    "/etc/kubernetes/pki/etcd/healthcheck-client.key",
 				EtcdCACertFile: "/etc/kubernetes/pki/etcd/ca.crt",
@@ -94,7 +94,7 @@ func _GetEtcdClient() func() (*EtcdClient, error) {
 				return nil, err
 			}
 
-			status, err := client.Status(context.TODO(), "https://172.18.0.3:2379")
+			status, err := client.Status(context.TODO(), "https://172.18.0.4:2379")
 
 			if err != nil {
 				// fmt.Println("无法获取到 etcd 版本: ", err.Error())

@@ -7,8 +7,8 @@ import (
 	"os"
 )
 
-const logPath string = "/root/cni/simple-k8s-cni/test-cni.log"
-const logErrPath string = "/root/cni/simple-k8s-cni/log.error.txt"
+const logPath string = "/root/cni/test-cni.log"
+const logErrPath string = "/root/cni/log.error.txt"
 
 func WriteFile(content ...string) {
 	contentRes := ""

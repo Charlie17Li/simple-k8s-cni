@@ -394,12 +394,14 @@ func (g *Get) CIDR(hostName string) (string, error) {
 
 	_cidrPath := getEtcdPathWithPrefix("/" + getIpamSubnet() + "/" + getIpamMaskSegment() + "/" + hostName)
 
-	etcd := getEtcdClient()
-	if etcd == nil {
+	etcdClient := getEtcdClient()
+	if etcdClient == nil {
 		return "", fmt.Errorf("etcd client not found")
 	}
 
-	cidr, err := etcd.Get(_cidrPath)
+	utils.WriteLog("cirdPath 路径是", _cidrPath)
+
+	cidr, err := etcdClient.Get(_cidrPath)
 	if err != nil {
 		return "", err
 	}

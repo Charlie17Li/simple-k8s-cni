@@ -7,4 +7,10 @@ systemctl start containerd  && systemctl start kubelet
 
 systemctl stop kubelet && systemctl stop containerd
 
-ip link del testbr0 && ip link del veth1f92a1c4
+journalctl -exu containerd -f
+
+ip link del testbr0 && ip link del veth9e409db6
+
+docker cp main 95cc9b36316d:/opt/cni/bin/testcni && \
+docker cp main 585965504cf3:/opt/cni/bin/testcni && \
+docker cp main bb45332b0571:/opt/cni/bin/testcni

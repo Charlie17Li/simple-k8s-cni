@@ -14,7 +14,7 @@ var (
 	ifName = "eth0"
 	podIP  = "10.244.0.2/24"
 	mtu    = 1500
-	nspath = "/run/netns/test.net.1"
+	nspath = "/run/netns/test"
 )
 
 func clean() {
