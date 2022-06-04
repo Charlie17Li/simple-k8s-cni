@@ -54,12 +54,14 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err := json.Unmarshal(args.StdinData, pluginConfig); err != nil {
 		utils.WriteLog("args.StdinData 转 pluginConfig 失败")
 		return err
+	} else {
+		utils.WriteLog("args.StdinData 转 pluginConfig 成功")
 	}
-	// utils.WriteLog("这里的结果是: pluginConfig.Bridge", pluginConfig.Bridge)
-	// utils.WriteLog("这里的结果是: pluginConfig.CNIVersion", pluginConfig.CNIVersion)
-	// utils.WriteLog("这里的结果是: pluginConfig.Name", pluginConfig.Name)
-	// utils.WriteLog("这里的结果是: pluginConfig.Subnet", pluginConfig.Subnet)
-	// utils.WriteLog("这里的结果是: pluginConfig.Type", pluginConfig.Type)
+	utils.WriteLog("这里的结果是: pluginConfig.Bridge", pluginConfig.Bridge)
+	utils.WriteLog("这里的结果是: pluginConfig.CNIVersion", pluginConfig.CNIVersion)
+	utils.WriteLog("这里的结果是: pluginConfig.Name", pluginConfig.Name)
+	utils.WriteLog("这里的结果是: pluginConfig.Subnet", pluginConfig.Subnet)
+	utils.WriteLog("这里的结果是: pluginConfig.Type", pluginConfig.Type)
 
 	// 使用 kubelet(containerd) 传过来的 subnet 地址初始化 ipam
 	ipam.Init(pluginConfig.Subnet)
@@ -67,6 +69,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("创建 ipam 客户端出错, err: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("创建 ipam 客户端成功")
 	}
 
 	// 根据 subnet 网段来得到网关, 表示所有的节点上的 pod 的 ip 都在这个网关范围内
@@ -74,6 +78,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("获取 gateway 出错, err: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("获取 gateway 成功")
 	}
 
 	// 获取网关＋网段号

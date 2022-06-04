@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testcni/etcd"
@@ -72,9 +73,22 @@ func lock() {
 }
 
 func getEtcdClient() *etcd.EtcdClient {
+	utils.WriteLog("getEtcdClient called")
+
+	defer func() {
+		// 从 panic 中恢复
+		if e := recover(); e != nil {
+			// 打印栈信息
+			buf := make([]byte, 1024)
+			buf = buf[:runtime.Stack(buf, false)]
+			err := fmt.Errorf("[PANIC]%v\n%s\n", e, buf)
+			utils.WriteLog(err.Error())
+		}
+	}()
 	etcd.Init()
 	etcdClient, err := etcd.GetEtcdClient()
 	if err != nil {
+		utils.WriteLog("获取EtcdClient失败")
 		return nil
 	}
 	return etcdClient
@@ -615,6 +629,8 @@ func _GetIpamService(subnet string, maskSegment ...string) func() (*IpamService,
 				_maskSegment = subnetAndMask[1]
 			}
 
+			utils.WriteLog("[ipam] _subnet:", _subnet, ", _maskSegment:", _maskSegment)
+
 			var _maskIP string
 			switch _maskSegment {
 			case "8":
@@ -631,6 +647,7 @@ func _GetIpamService(subnet string, maskSegment ...string) func() (*IpamService,
 			}
 
 			// 如果不是合法的子网地址的话就强转成合法
+			utils.WriteLog("如果不是合法的子网地址的话就强转成合法")
 			_subnet = utils.InetInt2Ip(utils.InetIP2Int(_subnet) & utils.InetIP2Int(_maskIP))
 			_ipam = &IpamService{
 				Subnet: _subnet,
@@ -667,7 +684,7 @@ func GetIpamService() (*IpamService, error) {
 	if __GetIpamService == nil {
 		return nil, errors.New("ipam service 需要初始化")
 	}
-
+	utils.WriteLog("进入GetIpamService，即将调用__GetIpamService")
 	ipamService, err := __GetIpamService()
 	if err != nil {
 		return nil, err

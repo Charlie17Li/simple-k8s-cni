@@ -39,8 +39,8 @@ rm -rf /usr/local/go
 mv go /usr/local/go
 echo 'export PATH=/usr/local/go/bin:$PATH' >> ~/.bashrc
 echo 'export PATH=/root/go/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-go env -w GOPROXY=https://goproxy.cn
-cd $REPO_ROOT
+#source ~/.bashrc
+#go env -w GOPROXY=https://goproxy.cn
+#cd $REPO_ROOT
 #
 

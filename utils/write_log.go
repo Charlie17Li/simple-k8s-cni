@@ -7,8 +7,8 @@ import (
 	"os"
 )
 
-const logPath string = "/root/cni/test-cni.log"
-const logErrPath string = "/root/cni/log.error.txt"
+const logPath string = "/root/test-cni.log"
+const logErrPath string = "/root/log.error.txt"
 
 func WriteFile(content ...string) {
 	contentRes := ""
@@ -27,10 +27,16 @@ func WriteLog(log ...string) {
 	file, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		// WriteFile("打开文件失败, 即将创建文件: ", err.Error())
-		os.Create(logPath)
+		if file, err = os.Create(logPath); err != nil {
+			return
+		}
 	}
 	//及时关闭file句柄
-	defer file.Close()
+	defer func() {
+		if err = file.Close(); err != nil {
+
+		}
+	}()
 	//写入文件时，使用带缓存的 *Writer
 	write := bufio.NewWriter(file)
 	logRes := ""

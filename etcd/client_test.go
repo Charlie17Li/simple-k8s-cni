@@ -11,6 +11,8 @@ func TestGetObj(t *testing.T) {
 	if client, err = GetEtcdClient(); err != nil || client == nil {
 		t.Errorf("获取client失败, err:%v", err)
 		return
+	} else {
+		t.Log("获取client成功")
 	}
 
 	if val, err := client.GetObj("/registry/minions/cni-control-plane"); err == nil {

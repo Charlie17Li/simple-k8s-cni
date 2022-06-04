@@ -14,4 +14,10 @@ nodes:
   - hostPath: /Users/a123/Projects/simple-k8s-cni
     containerPath: /root/cni
 - role: worker
+  extraMounts:
+    - hostPath: /Users/a123/Projects/simple-k8s-cni
+      containerPath: /root/cni
 - role: worker
+  extraMounts:
+    - hostPath: /Users/a123/Projects/simple-k8s-cni
+      containerPath: /root/cni
