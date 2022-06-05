@@ -1,13 +1,19 @@
 package etcd
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"regexp"
 	"strings"
+	"testcni/utils"
 	"time"
 
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	etcd "go.etcd.io/etcd/client/v3"
+	"k8s.io/kubectl/pkg/scheme"
 )
 
 type EtcdConfig struct {
@@ -30,6 +36,7 @@ type EtcdClient struct {
 const (
 	clientTimeout = 30 * time.Second
 	etcdTimeout   = 2 * time.Second
+	confPath      = "/root/cni/etcd.conf"
 )
 
 func newEtcdClient(config *EtcdConfig) (*etcd.Client, error) {
@@ -69,12 +76,17 @@ func newEtcdClient(config *EtcdConfig) (*etcd.Client, error) {
 var __GetEtcdClient func() (*EtcdClient, error)
 
 func GetEtcdClient() (*EtcdClient, error) {
+	return _GetEtcdClient()()
+}
 
-	if __GetEtcdClient == nil {
-		return nil, nil
+func getEtcdIp(path string) string {
+	if file, err := os.Open(path); err == nil {
+		buf := bufio.NewReader(file)
+		if line, err := buf.ReadString('\n'); err == nil {
+			return regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+`).FindString(line)
+		}
 	}
-	return __GetEtcdClient()
-
+	return ""
 }
 
 func _GetEtcdClient() func() (*EtcdClient, error) {
@@ -85,23 +97,32 @@ func _GetEtcdClient() func() (*EtcdClient, error) {
 			return _client, nil
 		} else {
 			// ETCDCTL_API=3 etcdctl --endpoints https://192.168.98.143:2379:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/healthcheck-client.crt --key /etc/kubernetes/pki/etcd/healthcheck-client.key get / --prefix --keys-only
+			ip := getEtcdIp(confPath)
+			if ip == "" {
+				return nil, fmt.Errorf("ETCDIP找不到")
+			}
 
 			// TODO: 这里暂时把 etcd 的地址写死了
 			client, err := newEtcdClient(&EtcdConfig{
-				EtcdEndpoints:  "https://192.168.98.143:2379",
+				EtcdEndpoints:  "https://" + ip + ":2379",
 				EtcdCertFile:   "/etc/kubernetes/pki/etcd/healthcheck-client.crt",
 				EtcdKeyFile:    "/etc/kubernetes/pki/etcd/healthcheck-client.key",
 				EtcdCACertFile: "/etc/kubernetes/pki/etcd/ca.crt",
 			})
 
 			if err != nil {
+				utils.WriteLog("newEtcdClient 失败, err:", err.Error())
 				return nil, err
+			} else {
+				utils.WriteLog("newEtcdClient 成功")
 			}
 
-			status, err := client.Status(context.TODO(), "https://192.168.98.143:2379")
+			status, err := client.Status(context.TODO(), client.Endpoints()[0])
 
 			if err != nil {
-				// fmt.Println("无法获取到 etcd 版本: ", err.Error())
+				utils.WriteLog("无法获取ECTD的状态")
+			} else {
+				utils.WriteLog("ETCD的Version为：", status.Version)
 			}
 
 			if client != nil {
@@ -112,7 +133,7 @@ func _GetEtcdClient() func() (*EtcdClient, error) {
 				if status != nil && status.Version != "" {
 					_client.Version = status.Version
 				}
-				// fmt.Println("etcd 客户端初始化成功")
+				utils.WriteLog("客户端初始化成功", status.Version)
 				return _client, nil
 			}
 		}
@@ -130,6 +151,7 @@ func (c *EtcdClient) Set(key, value string) error {
 	_, err := c.client.Put(context.TODO(), key, value)
 
 	if err != nil {
+		utils.WriteLog("Set失败, key", key, ", value:", value)
 		return err
 	}
 	return err
@@ -139,6 +161,7 @@ func (c *EtcdClient) Del(key string) error {
 	_, err := c.client.Delete(context.TODO(), key)
 
 	if err != nil {
+		utils.WriteLog("Del失败, key:", key)
 		return err
 	}
 	return err
@@ -147,13 +170,9 @@ func (c *EtcdClient) Del(key string) error {
 func (c *EtcdClient) Get(key string, opts ...etcd.OpOption) (string, error) {
 	resp, err := c.client.Get(context.TODO(), key, opts...)
 	if err != nil {
+		utils.WriteLog("Get失败, key:", key)
 		return "", err
 	}
-
-	// for _, ev := range resp.Kvs {
-	// 	fmt.Println("这里的 ev 是: ", ev)
-	// 	fmt.Printf("%s : %s\n", ev.Key, ev.Value)
-	// }
 
 	if len(resp.Kvs) > 0 {
 		return string(resp.Kvs[len(resp.Kvs)-1:][0].Value), nil
@@ -161,9 +180,25 @@ func (c *EtcdClient) Get(key string, opts ...etcd.OpOption) (string, error) {
 	return "", nil
 }
 
+func (c *EtcdClient) GetObj(key string, opts ...etcd.OpOption) (interface{}, error) {
+	resp, err := c.client.Get(context.TODO(), key, opts...)
+	if err != nil {
+		utils.WriteLog("GetObj失败, key:", key)
+		return nil, err
+	}
+	decoder := scheme.Codecs.UniversalDeserializer()
+	obj, _, err := decoder.Decode(resp.Kvs[len(resp.Kvs)-1:][0].Value, nil, nil)
+	if err != nil {
+		utils.WriteLog("Decode失败")
+		return nil, err
+	}
+	return obj, nil
+}
+
 func (c *EtcdClient) GetKey(key string, opts ...etcd.OpOption) (string, error) {
 	resp, err := c.client.Get(context.TODO(), key, opts...)
 	if err != nil {
+		utils.WriteLog("GetKey失败, key:", key)
 		return "", err
 	}
 
@@ -181,14 +216,13 @@ func (c *EtcdClient) GetKey(key string, opts ...etcd.OpOption) (string, error) {
 func (c *EtcdClient) GetAll(key string, opts ...etcd.OpOption) ([]string, error) {
 	resp, err := c.client.Get(context.TODO(), key, opts...)
 	if err != nil {
+		utils.WriteLog("GetALL失败, key:", key)
 		return nil, err
 	}
 
 	var res []string
 
 	for _, ev := range resp.Kvs {
-		// fmt.Println("这里的 ev 是: ", ev)
-		// fmt.Printf("%s : %s\n", ev.Key, ev.Value)
 		res = append(res, string(ev.Value))
 	}
 
@@ -198,6 +232,7 @@ func (c *EtcdClient) GetAll(key string, opts ...etcd.OpOption) ([]string, error)
 func (c *EtcdClient) GetAllKey(key string, opts ...etcd.OpOption) ([]string, error) {
 	resp, err := c.client.Get(context.TODO(), key, opts...)
 	if err != nil {
+		utils.WriteLog("GetAllKey失败, key:", key)
 		return nil, err
 	}
 

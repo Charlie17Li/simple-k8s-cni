@@ -40,6 +40,7 @@ type PluginConf struct {
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
+
 	utils.WriteLog("进入到 cmdAdd")
 	utils.WriteLog(
 		"这里的 CmdArgs 是: ", "ContainerID: ", args.ContainerID,
@@ -53,12 +54,14 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err := json.Unmarshal(args.StdinData, pluginConfig); err != nil {
 		utils.WriteLog("args.StdinData 转 pluginConfig 失败")
 		return err
+	} else {
+		utils.WriteLog("args.StdinData 转 pluginConfig 成功")
 	}
-	// utils.WriteLog("这里的结果是: pluginConfig.Bridge", pluginConfig.Bridge)
-	// utils.WriteLog("这里的结果是: pluginConfig.CNIVersion", pluginConfig.CNIVersion)
-	// utils.WriteLog("这里的结果是: pluginConfig.Name", pluginConfig.Name)
-	// utils.WriteLog("这里的结果是: pluginConfig.Subnet", pluginConfig.Subnet)
-	// utils.WriteLog("这里的结果是: pluginConfig.Type", pluginConfig.Type)
+	utils.WriteLog("这里的结果是: pluginConfig.Bridge", pluginConfig.Bridge)
+	utils.WriteLog("这里的结果是: pluginConfig.CNIVersion", pluginConfig.CNIVersion)
+	utils.WriteLog("这里的结果是: pluginConfig.Name", pluginConfig.Name)
+	utils.WriteLog("这里的结果是: pluginConfig.Subnet", pluginConfig.Subnet)
+	utils.WriteLog("这里的结果是: pluginConfig.Type", pluginConfig.Type)
 
 	// 使用 kubelet(containerd) 传过来的 subnet 地址初始化 ipam
 	ipam.Init(pluginConfig.Subnet)
@@ -66,6 +69,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("创建 ipam 客户端出错, err: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("创建 ipam 客户端成功")
 	}
 
 	// 根据 subnet 网段来得到网关, 表示所有的节点上的 pod 的 ip 都在这个网关范围内
@@ -73,6 +78,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("获取 gateway 出错, err: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("获取 gateway 成功")
 	}
 
 	// 获取网关＋网段号
@@ -80,6 +87,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("获取 gatewayWithMaskSegment 出错, err: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("获取 gatewayWithMaskSegment: %v, err: ", gatewayWithMaskSegment)
 	}
 
 	// 获取网桥名字
@@ -98,6 +107,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("获取 ns 失败: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("获取 ns 成功: %v", args.Netns)
 	}
 
 	// 从 ipam 中拿到一个未使用的 ip 地址
@@ -105,6 +116,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		utils.WriteLog("获取 podIP 出错, err: ", err.Error())
 		return err
+	} else {
+		utils.WriteLog("获取 podIP 成功, err: ", podIP)
 	}
 
 	// 走到这儿的话说明这个 podIP 已经在 etcd 中占上坑位了

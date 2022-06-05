@@ -14,9 +14,9 @@ import (
 	"testcni/etcd"
 	"testcni/utils"
 
-	"github.com/dlclark/regexp2"
 	"github.com/vishvananda/netlink"
 	oriEtcd "go.etcd.io/etcd/client/v3"
+	apiv1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -72,10 +72,15 @@ func lock() {
 }
 
 func getEtcdClient() *etcd.EtcdClient {
+	utils.WriteLog("getEtcdClient called")
+
 	etcd.Init()
 	etcdClient, err := etcd.GetEtcdClient()
 	if err != nil {
+		utils.WriteLog("获取EtcdClient失败")
 		return nil
+	} else {
+		utils.WriteLog("getEtcdClient leave")
 	}
 	return etcdClient
 }
@@ -394,12 +399,14 @@ func (g *Get) CIDR(hostName string) (string, error) {
 
 	_cidrPath := getEtcdPathWithPrefix("/" + getIpamSubnet() + "/" + getIpamMaskSegment() + "/" + hostName)
 
-	etcd := getEtcdClient()
-	if etcd == nil {
+	etcdClient := getEtcdClient()
+	if etcdClient == nil {
 		return "", fmt.Errorf("etcd client not found")
 	}
 
-	cidr, err := etcd.Get(_cidrPath)
+	utils.WriteLog("cirdPath 路径是", _cidrPath)
+
+	cidr, err := etcdClient.Get(_cidrPath)
 	if err != nil {
 		return "", err
 	}
@@ -418,37 +425,21 @@ func (g *Get) NodeIp(hostName string) (string, error) {
 	defer unlock()
 
 	const _minionsNodePrefix = "/registry/minions/"
-	val, err := g.etcdClient.Get(_minionsNodePrefix + hostName)
+	val, err := g.etcdClient.GetObj(_minionsNodePrefix + hostName)
 
 	if err != nil {
 		utils.WriteLog("获取集群节点 ip 失败, err: ", err.Error())
 		return "", err
 	}
 
-	r, err := regexp2.Compile(`(?<=InternalIP).*(?=\*)`, 0)
-
-	if err != nil {
-		utils.WriteLog("初始化正则表达式失败, err: ", err.Error())
-		return "", nil
-	}
-	ip, err := r.FindStringMatch(val)
-	if err != nil {
-		utils.WriteLog("正则匹配 ip 失败, err: ", err.Error())
-		return "", nil
-	}
-	// fmt.Println("这里的 ip 是: ", ip)
-	if ip == nil {
-		return "", fmt.Errorf("没有找到 ip")
-	}
-	// TODO: 这里匹配出来的东西很诡异, 匹配出来的 ip 前头会有个两个字节分别是 18 和 14
-	// 不知道是不是 etcd 中存储的文档的特殊格式还是咋得, 真 der
-	// 这里先 hack 得强行把它替换成空
-	_ip := strings.Replace(ip.String(), string([]byte{18, 14}), "", 1)
-	if len(_ip) > 0 {
-		return _ip, nil
+	node := val.(*apiv1.Node)
+	for _, val := range node.Status.Addresses {
+		if val.Type == "InternalIP" {
+			return val.Address, nil
+		}
 	}
 
-	return "", fmt.Errorf("没有找到 ip")
+	return "", fmt.Errorf("获取节点的Internal失败")
 }
 
 func (g *Get) nextUnusedIP() (string, error) {
@@ -629,6 +620,8 @@ func _GetIpamService(subnet string, maskSegment ...string) func() (*IpamService,
 				_maskSegment = subnetAndMask[1]
 			}
 
+			utils.WriteLog("[ipam] _subnet:", _subnet, ", _maskSegment:", _maskSegment)
+
 			var _maskIP string
 			switch _maskSegment {
 			case "8":
@@ -645,6 +638,7 @@ func _GetIpamService(subnet string, maskSegment ...string) func() (*IpamService,
 			}
 
 			// 如果不是合法的子网地址的话就强转成合法
+			utils.WriteLog("如果不是合法的子网地址的话就强转成合法")
 			_subnet = utils.InetInt2Ip(utils.InetIP2Int(_subnet) & utils.InetIP2Int(_maskIP))
 			_ipam = &IpamService{
 				Subnet: _subnet,
@@ -681,7 +675,7 @@ func GetIpamService() (*IpamService, error) {
 	if __GetIpamService == nil {
 		return nil, errors.New("ipam service 需要初始化")
 	}
-
+	utils.WriteLog("进入GetIpamService，即将调用__GetIpamService")
 	ipamService, err := __GetIpamService()
 	if err != nil {
 		return nil, err
