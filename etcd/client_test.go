@@ -30,3 +30,9 @@ func TestGetObj(t *testing.T) {
 
 	t.Errorf("获取key失败")
 }
+
+func TestReg(t *testing.T) {
+	if ip := getEtcdIp(confPath); ip == "" {
+		t.Errorf("获取ETCDIP失败")
+	}
+}

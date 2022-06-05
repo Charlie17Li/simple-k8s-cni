@@ -1,8 +1,12 @@
 package etcd
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"regexp"
 	"strings"
 	"testcni/utils"
 	"time"
@@ -32,6 +36,7 @@ type EtcdClient struct {
 const (
 	clientTimeout = 30 * time.Second
 	etcdTimeout   = 2 * time.Second
+	confPath      = "/root/cni/etcd.conf"
 )
 
 func newEtcdClient(config *EtcdConfig) (*etcd.Client, error) {
@@ -74,6 +79,16 @@ func GetEtcdClient() (*EtcdClient, error) {
 	return _GetEtcdClient()()
 }
 
+func getEtcdIp(path string) string {
+	if file, err := os.Open(path); err == nil {
+		buf := bufio.NewReader(file)
+		if line, err := buf.ReadString('\n'); err == nil {
+			return regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+`).FindString(line)
+		}
+	}
+	return ""
+}
+
 func _GetEtcdClient() func() (*EtcdClient, error) {
 	var _client *EtcdClient
 
@@ -82,10 +97,14 @@ func _GetEtcdClient() func() (*EtcdClient, error) {
 			return _client, nil
 		} else {
 			// ETCDCTL_API=3 etcdctl --endpoints https://192.168.98.143:2379:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/healthcheck-client.crt --key /etc/kubernetes/pki/etcd/healthcheck-client.key get / --prefix --keys-only
+			ip := getEtcdIp(confPath)
+			if ip == "" {
+				return nil, fmt.Errorf("ETCDIP找不到")
+			}
 
 			// TODO: 这里暂时把 etcd 的地址写死了
 			client, err := newEtcdClient(&EtcdConfig{
-				EtcdEndpoints:  "https://172.18.0.3:2379",
+				EtcdEndpoints:  "https://" + ip + ":2379",
 				EtcdCertFile:   "/etc/kubernetes/pki/etcd/healthcheck-client.crt",
 				EtcdKeyFile:    "/etc/kubernetes/pki/etcd/healthcheck-client.key",
 				EtcdCACertFile: "/etc/kubernetes/pki/etcd/ca.crt",

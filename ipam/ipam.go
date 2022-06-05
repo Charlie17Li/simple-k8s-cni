@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
 	"testcni/etcd"
@@ -75,21 +74,13 @@ func lock() {
 func getEtcdClient() *etcd.EtcdClient {
 	utils.WriteLog("getEtcdClient called")
 
-	defer func() {
-		// 从 panic 中恢复
-		if e := recover(); e != nil {
-			// 打印栈信息
-			buf := make([]byte, 1024)
-			buf = buf[:runtime.Stack(buf, false)]
-			err := fmt.Errorf("[PANIC]%v\n%s\n", e, buf)
-			utils.WriteLog(err.Error())
-		}
-	}()
 	etcd.Init()
 	etcdClient, err := etcd.GetEtcdClient()
 	if err != nil {
 		utils.WriteLog("获取EtcdClient失败")
 		return nil
+	} else {
+		utils.WriteLog("getEtcdClient leave")
 	}
 	return etcdClient
 }
