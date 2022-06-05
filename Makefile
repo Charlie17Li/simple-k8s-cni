@@ -1,5 +1,5 @@
 etcd:
-	ETCDCTL_API=3 etcdctl --endpoints https://172.18.0.4:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/healthcheck-client.crt --key /etc/kubernetes/pki/etcd/healthcheck-client.key get / --prefix --keys-only
+	ETCDCTL_API=3 etcdctl --endpoints https://172.18.0.4:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/healthcheck-client.crt --key /etc/kubernetes/pki/etcd/healthcheck-client.key get /testcni/ipam/10.244.0.0/16/cni-control-plane --prefix --keys-only
 cp:
 	cp main /opt/cni/bin/testcni
 start:
@@ -26,10 +26,10 @@ init:
 	docker cp -a cni-control-plane:/etc/kubernetes/pki/etcd/ ./etcdca
 	docker cp ./etcdca/ cni-worker:/etc/kubernetes/pki/etcd
 	docker cp ./etcdca/ cni-worker2:/etc/kubernetes/pki/etcd
-#
-#	docker cp testcni.conf cni-worker2:/etc/cni/net.d/testcni.conf && \
-#	docker cp testcni.conf cni-control-plane:/etc/cni/net.d/testcni.conf && \
-#	docker cp testcni.conf cni-worker:/etc/cni/net.d/testcni.conf
+
+	docker cp testcni.conf cni-worker2:/etc/cni/net.d/testcni.conf && \
+	docker cp testcni.conf cni-control-plane:/etc/cni/net.d/testcni.conf && \
+	docker cp testcni.conf cni-worker:/etc/cni/net.d/testcni.conf
 
 
 
