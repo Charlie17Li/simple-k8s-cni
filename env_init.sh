@@ -33,14 +33,14 @@ apt install wget
 
 # 下载Go
 cd $REPO_ROOT/../
-wget https://go.dev/dl/go1.17.9.linux-amd64.tar.gz -t 3 -O go1.17.9.linux-amd64.tar.gz
+curl -LO https://go.dev/dl/go1.17.9.linux-amd64.tar.gz
 tar -zxf go1.17.9.linux-amd64.tar.gz
 rm -rf /usr/local/go
 mv go /usr/local/go
 echo 'export PATH=/usr/local/go/bin:$PATH' >> ~/.bashrc
 echo 'export PATH=/root/go/bin:$PATH' >> ~/.bashrc
-#source ~/.bashrc
-#go env -w GOPROXY=https://goproxy.cn
-#cd $REPO_ROOT
-#
+# source ~/.bashrc
+cd $REPO_ROOT
+/usr/local/go/bin/go env -w GOPROXY=https://goproxy.cn
+/usr/local/go/bin/go build main.go
 
