@@ -13,7 +13,6 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/vishvananda/netlink"
 )
 
 type PluginConf struct {
@@ -171,7 +170,7 @@ func TestMain(m *testing.M) {
 	// return
 
 	// 首先通过 ipam 获取到 etcd 中存放的集群中所有节点的相关网络信息
-	networks, err := ipamClient.Get().AllHostNetwork()
+	networks, err := ipamClient.Get().AllHostNetwork(ipamClient)
 	if err != nil {
 		fmt.Println("这里的获取所有节点的网络信息失败, err: ", err.Error())
 		return
@@ -195,16 +194,16 @@ func TestMain(m *testing.M) {
 	// 如果无法通信, 有可能是 iptables 被设置了 forward drop
 	// 需要用 iptables 允许网桥做转发
 	// 接下来获取网卡信息, 把本机网卡插入到网桥上
-	link, err := netlink.LinkByName(currentNetwork.Name)
-	if err != nil {
-		fmt.Println("获取本机网卡失败, err: ", err.Error())
-		return
-	}
-	err = nettools.SetIptablesForDeviceToFarwordAccept(link.(*netlink.Device))
-	if err != nil {
-		fmt.Println("设置 ens33 转发规则失败")
-		return
-	}
+	//link, err := netlink.LinkByName(currentNetwork.Name)
+	//if err != nil {
+	//	fmt.Println("获取本机网卡失败, err: ", err.Error())
+	//	return
+	//}
+	//err = nettools.SetIptablesForDeviceToFarwordAccept(link.(*netlink.Veth))
+	//if err != nil {
+	//	fmt.Println("设置 ens33 转发规则失败")
+	//	return
+	//}
 
 	// // 接下来获取网卡信息, 把本机网卡插入到网桥上
 	// link, err := netlink.LinkByName(currentNetwork.Name)

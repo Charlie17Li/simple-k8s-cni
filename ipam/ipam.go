@@ -23,6 +23,11 @@ const (
 	prefix = "testcni/ipam"
 )
 
+var (
+	globalIpam       *IpamService
+	globalEtcdClient *etcd.EtcdClient
+)
+
 type Get struct{ etcdClient *etcd.EtcdClient }
 type Release struct{ etcdClient *etcd.EtcdClient }
 type Set struct{ etcdClient *etcd.EtcdClient }
@@ -72,38 +77,46 @@ func lock() {
 }
 
 func getEtcdClient() *etcd.EtcdClient {
-	utils.WriteLog("getEtcdClient called")
-
+	if globalEtcdClient != nil {
+		return globalEtcdClient
+	}
+	utils.WriteLog("获取ETCDClient called")
 	etcd.Init()
 	etcdClient, err := etcd.GetEtcdClient()
 	if err != nil {
 		utils.WriteLog("获取EtcdClient失败")
 		return nil
 	} else {
-		utils.WriteLog("getEtcdClient leave")
+		utils.WriteLog("获取ETCDClient leave")
 	}
 	return etcdClient
 }
 
 func getIpamSubnet() string {
-	ipam, _ := GetIpamService()
-	return ipam.Subnet
+	if globalIpam == nil {
+		globalIpam, _ = GetIpamService()
+	}
+	return globalIpam.Subnet
 }
 
 func getIpamMaskSegment() string {
-	ipam, _ := GetIpamService()
-	return ipam.MaskSegment
+	if globalIpam == nil {
+		globalIpam, _ = GetIpamService()
+	}
+	return globalIpam.MaskSegment
 }
 
 func getIpamMaskIP() string {
-	ipam, _ := GetIpamService()
-	return ipam.MaskIP
+	if globalIpam == nil {
+		globalIpam, _ = GetIpamService()
+	}
+	return globalIpam.MaskIP
 }
 
 func getHostPath() string {
 	hostname, err := os.Hostname()
 	if err != nil {
-		// fmt.Println("获取主机名失败: ", err.Error())
+		utils.WriteLog("获取主机名失败: ", err.Error())
 		return "/test-error-path"
 	}
 	return getEtcdPathWithPrefix("/" + getIpamSubnet() + "/" + getIpamMaskSegment() + "/" + hostname)
@@ -610,7 +623,7 @@ func _GetIpamService(subnet string, maskSegment ...string) func() (*IpamService,
 
 	return func() (*IpamService, error) {
 		var _ipam *IpamService
-
+		// 什么神仙操作？
 		if _ipam != nil {
 			return _ipam, nil
 		} else {
@@ -679,15 +692,18 @@ func _GetIpamService(subnet string, maskSegment ...string) func() (*IpamService,
 }
 
 func GetIpamService() (*IpamService, error) {
+	if globalIpam != nil {
+		return globalIpam, nil
+	}
 	if __GetIpamService == nil {
 		return nil, errors.New("ipam service 需要初始化")
 	}
-	utils.WriteLog("进入GetIpamService，即将调用__GetIpamService")
-	ipamService, err := __GetIpamService()
-	if err != nil {
+	utils.WriteLog("进入GetIpamService，即将调用__GetIpamService（耗时）")
+	var err error
+	if globalIpam, err = __GetIpamService(); err != nil {
 		return nil, err
 	}
-	return ipamService, nil
+	return globalIpam, nil
 }
 
 func Init(subnet string, maskSegment ...string) {
