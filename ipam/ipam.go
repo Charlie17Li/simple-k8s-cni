@@ -297,7 +297,7 @@ func (g *Get) NodeNames() ([]string, error) {
 	return res, nil
 }
 
-func (g *Get) AllHostNetwork() ([]*Network, error) {
+func (g *Get) AllHostNetwork(is *IpamService) ([]*Network, error) {
 	names, err := g.NodeNames()
 	if err != nil {
 		return nil, err
@@ -315,7 +315,7 @@ func (g *Get) AllHostNetwork() ([]*Network, error) {
 			return nil, err
 		}
 
-		cidr, err := g.CIDR(name)
+		cidr, err := g.CIDR(name, is)
 		if err != nil {
 			return nil, err
 		}
@@ -349,7 +349,7 @@ func (g *Get) HostNetwork() (*Network, error) {
 	// 先获取一下 ipam
 	ipam, err := GetIpamService()
 	if err != nil {
-		// fmt.Println("在 HostNetwork 方法中获取 ipam svc 失败: ", err.Error())
+		utils.WriteLog("在 HostNetwork 方法中获取 ipam svc 失败: ", err.Error())
 		return nil, err
 	}
 	// 然后拿本机的 hostname
@@ -365,7 +365,9 @@ func (g *Get) HostNetwork() (*Network, error) {
 	}
 	for _, link := range linkList {
 		// 就看类型是 device 的
-		if link.Type() == "device" {
+		// todo(lql): 这里由于是节点都是Docker创建的，所以 divice的设备只有lo, ip:127.0.0.1
+		// 			   需要eth0是一个veth pair，这里根据名字来判断
+		if link.Attrs().Name == "eth0" {
 			// 找每块儿设备的地址信息
 			addr, err := netlink.AddrList(link, netlink.FAMILY_V4)
 			if err != nil {
@@ -390,29 +392,34 @@ func (g *Get) HostNetwork() (*Network, error) {
 			}
 		}
 	}
-	// fmt.Println("没找到有效的网卡")
 	return nil, fmt.Errorf("No valid network device found")
 }
 
-func (g *Get) CIDR(hostName string) (string, error) {
+// CIDR 根据主机名获取PodCIDR
+func (g *Get) CIDR(hostName string, is *IpamService) (string, error) {
 	defer unlock()
 
-	_cidrPath := getEtcdPathWithPrefix("/" + getIpamSubnet() + "/" + getIpamMaskSegment() + "/" + hostName)
+	cidrPath := getEtcdPathWithPrefix("/" + getIpamSubnet() + "/" + getIpamMaskSegment() + "/" + hostName)
+	poolPath := getEtcdPathWithPrefix("/" + getIpamSubnet() + "/" + getIpamMaskSegment() + "/" + "pool")
 
 	etcdClient := getEtcdClient()
 	if etcdClient == nil {
 		return "", fmt.Errorf("etcd client not found")
 	}
 
-	utils.WriteLog("cirdPath 路径是", _cidrPath)
+	utils.WriteLog("cirdPath 路径是", cidrPath)
 
-	cidr, err := etcdClient.Get(_cidrPath)
+	cidr, err := etcdClient.Get(cidrPath)
 	if err != nil {
 		return "", err
 	}
 
+	// 这里获取不到，说明该节点的CNI插件还没有完成初始化
 	if cidr == "" {
-		return "", fmt.Errorf("the host %s cidr not found", hostName)
+		//todo(lql): 需要为该节点注册
+		if _, err := is._NetworkInit(cidrPath, poolPath); err != nil {
+			return "", fmt.Errorf("the host %s cidr init failed", hostName)
+		}
 	}
 
 	// TODO: 先默让网段都按照 24 算, 这里可能会改

@@ -68,12 +68,26 @@ func TestGet_CIDR(t *testing.T) {
 	Init("10.244.0.0", "16")
 	is, err := GetIpamService()
 	if err != nil {
-		fmt.Println("ipam 初始化失败: ", err.Error())
+		t.Errorf("ipam 初始化失败: %v", err.Error())
 		return
 	}
-	if ip, err = is.Get().CIDR("cni-control-plane"); err != nil {
+	if ip, err = is.Get().CIDR("cni-control-plane", is); err != nil {
 		t.Errorf("获取CIDR失败:%v", err)
 	}
 
 	fmt.Println("ip是", ip)
+}
+
+func TestGet_HostNetwork(t *testing.T) {
+	var network *Network
+	Init("10.244.0.0", "16")
+	is, err := GetIpamService()
+	if err != nil {
+		t.Errorf("ipam 初始化失败: %v", err.Error())
+	}
+
+	if network, err = is.Get().HostNetwork(); err != nil {
+		t.Errorf("获取本机网卡信息失败")
+	}
+	t.Log(network)
 }

@@ -169,7 +169,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	 */
 
 	// 首先通过 ipam 获取到 etcd 中存放的集群中所有节点的相关网络信息
-	networks, err := ipamClient.Get().AllHostNetwork()
+	networks, err := ipamClient.Get().AllHostNetwork(ipamClient)
 	if err != nil {
 		utils.WriteLog("这里的获取所有节点的网络信息失败, err: ", err.Error())
 		return err
