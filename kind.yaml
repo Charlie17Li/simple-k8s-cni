@@ -10,14 +10,18 @@ networking:
   kubeProxyMode: "iptables"
 nodes:
 - role: control-plane
+  # Please include the @sha256: image digest from the image in the release notes,
+  image: kindest/node:v1.21.1@sha256:fae9a58f17f18f06aeac9772ca8b5ac680ebbed985e266f711d936e91d113bad
   extraMounts:
   - hostPath: /Users/a123/Projects/simple-k8s-cni
     containerPath: /root/cni
 - role: worker
+  image: kindest/node:v1.21.1@sha256:fae9a58f17f18f06aeac9772ca8b5ac680ebbed985e266f711d936e91d113bad
   extraMounts:
     - hostPath: /Users/a123/Projects/simple-k8s-cni
       containerPath: /root/cni
 - role: worker
+  image: kindest/node:v1.21.1@sha256:fae9a58f17f18f06aeac9772ca8b5ac680ebbed985e266f711d936e91d113bad
   extraMounts:
-    - hostPath: /Users/a123/Projects/simple-k8s-cni
+    - hostPath: /a123/Projects/simple-k8s-cni
       containerPath: /root/cni

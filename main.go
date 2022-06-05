@@ -11,8 +11,6 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/cni/pkg/version"
-	"github.com/vishvananda/netlink"
-
 	"github.com/containernetworking/plugins/pkg/ns"
 	bv "github.com/containernetworking/plugins/pkg/utils/buildversion"
 )
@@ -189,16 +187,16 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	link, err := netlink.LinkByName(currentNetwork.Name)
-	if err != nil {
-		utils.WriteLog("获取本机网卡失败, err: ", err.Error())
-		return err
-	}
-	err = nettools.SetIptablesForDeviceToFarwordAccept(link.(*netlink.Device))
-	if err != nil {
-		utils.WriteLog("设置本机网卡转发规则失败")
-		return err
-	}
+	//link, err := netlink.LinkByName(currentNetwork.Name)
+	//if err != nil {
+	//	utils.WriteLog("获取本机网卡失败, err: ", err.Error())
+	//	return err
+	//}
+	//err = nettools.SetIptablesForDeviceToFarwordAccept(link.(*netlink.Device))
+	//if err != nil {
+	//	utils.WriteLog("设置本机网卡转发规则失败")
+	//	return err
+	//}
 
 	_gw := net.ParseIP(gateway)
 

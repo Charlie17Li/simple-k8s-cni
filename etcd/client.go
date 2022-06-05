@@ -39,6 +39,10 @@ const (
 	confPath      = "/root/cni/etcd.conf"
 )
 
+var (
+	globalClient *EtcdClient
+)
+
 func newEtcdClient(config *EtcdConfig) (*etcd.Client, error) {
 	var etcdLocation []string
 	if config.EtcdAuthority != "" {
@@ -90,11 +94,10 @@ func getEtcdIp(path string) string {
 }
 
 func _GetEtcdClient() func() (*EtcdClient, error) {
-	var _client *EtcdClient
 
 	return func() (*EtcdClient, error) {
-		if _client != nil {
-			return _client, nil
+		if globalClient != nil {
+			return globalClient, nil
 		} else {
 			// ETCDCTL_API=3 etcdctl --endpoints https://192.168.98.143:2379:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/healthcheck-client.crt --key /etc/kubernetes/pki/etcd/healthcheck-client.key get / --prefix --keys-only
 			ip := getEtcdIp(confPath)
@@ -126,15 +129,15 @@ func _GetEtcdClient() func() (*EtcdClient, error) {
 			}
 
 			if client != nil {
-				_client = &EtcdClient{
+				globalClient = &EtcdClient{
 					client: client,
 				}
 
 				if status != nil && status.Version != "" {
-					_client.Version = status.Version
+					globalClient.Version = status.Version
 				}
 				utils.WriteLog("客户端初始化成功", status.Version)
-				return _client, nil
+				return globalClient, nil
 			}
 		}
 		return nil, errors.New("初始化 etcd client 失败")
